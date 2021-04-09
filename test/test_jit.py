@@ -112,6 +112,7 @@ import string
 import sys
 import tempfile
 import types
+import typing
 import unittest
 import warnings
 import zipfile
@@ -11026,7 +11027,7 @@ dedent """
         ''')
 
         foo_code = cu.find_function('foo').code
-        FileCheck().check("Tuple[]").check("Tuple[]").run(foo_code)
+        FileCheck().check("Tuple[()]").check("Tuple[()]").run(foo_code)
 
     def test_parse_empty_tuple_annotation_element_error(self):
         with self.assertRaisesRegex(
@@ -11044,6 +11045,12 @@ dedent """
 
         foo_code = cu.find_function('foo').code
         FileCheck().check(": None").check("-> None").run(foo_code)
+
+    def test_empty_tuple_str(self):
+        empty_tuple_type = torch._C.TupleType([])
+        g = {'Tuple' : typing.Tuple}
+        python_type = eval(empty_tuple_type.annotation_str, g)
+        assert python_type is typing.Tuple[()]
 
     def test_zip_enumerate_modulelist(self):
         class Sub(torch.nn.Module):
