@@ -1078,6 +1078,15 @@ c10::intrusive_ptr<ProcessGroup::Work> ProcessGroupNCCL::collective(
     at::cuda::CUDAMultiStreamGuard streamGuard(ncclStreams_[key]);
     work->future_ = c10::make_intrusive<at::cuda::CUDAFuture>(
         c10::ListType::create(c10::TensorType::get()));
+
+    // Add a callback that runs profiling end callbacks. wrapCallback() in CUDA
+    // future blocks the stream this callback runs on the corresponding
+    // cudaEvents_ ensuring appropriate synchronization.
+    if (work->recordFunctionEndCallback_) {
+      work->future_->addCallback([work]() {
+        work->recordFunctionEndCallback_();
+      });
+    }
     work->future_->markCompleted(at::IValue(*work->outputs_));
   }
 
@@ -1085,17 +1094,6 @@ c10::intrusive_ptr<ProcessGroup::Work> ProcessGroupNCCL::collective(
   work->blockingWait_ = blockingWait_;
   work->opTimeout_ = options_->timeout;
   work->store_ = store_;
-
-  if (work->recordFunctionEndCallback_) {
-    // recordFunctionEndCallback_ is normally called in fininsh() function by
-    // base class, but since finish is not called by WorkNCCL, we schedule this
-    // function to be run when work is done. Note that addCallback() onto the
-    // Work's CUDAFuture is not useful here, as it would just run the callback
-    // inline.
-    // Note when can_profile is false, profilingTitle is not provided and so,
-    // recordFunctionEndCallback_ is not set.
-    work->recordFunctionEndCallback_();
-  }
 
   if (asyncErrorHandling_) {
     workEnqueue(work);
