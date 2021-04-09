@@ -4189,7 +4189,7 @@ class TestAutograd(TestCase):
                 y = torch.real(x)
                 y.register_hook(lambda x: x + 1e-2)
                 return y
-            with self.assertRaisesRegex(RuntimeError, 'Gradients failed to compare equal for grad output = 1'):
+            with self.assertRaisesRegex(RuntimeError, 'Jacobian mismatch for output 0 with respect to input 0'):
                 gradcheck(fn3, (x_c,), fast_mode=False)
             self.assertFalse(gradcheck(fn3, (x_c,), raise_exception=False, fast_mode=False))
         check(fast_mode=True)
