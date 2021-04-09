@@ -47,6 +47,7 @@ from torch.testing._internal.common_distributed import (
     simple_sparse_reduce_tests,
     skip_if_win32,
     create_device,
+    with_dist_debug_levels,
     with_nccl_blocking_wait,
 )
 from torch.testing._internal.common_utils import (
@@ -2746,6 +2747,8 @@ class DistributedDataParallelTest(MultiProcessTestCase):
             device_id
         )
 
+        ddp_model = None
+
         def test_find_unused_parameters(
             find_unused_parameters, test_default=False, gradient_as_bucket_view=False
         ):
@@ -2764,6 +2767,8 @@ class DistributedDataParallelTest(MultiProcessTestCase):
                     find_unused_parameters=find_unused_parameters,
                     gradient_as_bucket_view=gradient_as_bucket_view,
                 )
+            nonlocal ddp_model
+            ddp_model = model
 
             output, fc3 = model(input)
             output = fc3(output)
@@ -2781,6 +2786,22 @@ class DistributedDataParallelTest(MultiProcessTestCase):
             self.assertTrue(
                 str(ex).startswith("Expected to mark a variable ready only once.")
             )
+            unused_index = 2
+            unused_index_str = f"Parameter at index {unused_index}"
+            model = ddp_model.module
+            for module_name, module in model.named_modules():
+                if module == model.fc3:
+                    for parameter_name, _ in module.named_parameters(
+                        recurse=False
+                    ):
+                        unused_fqn = f"{module_name}.{parameter_name}"
+                        # Only one such parameter in model.fc3, since bias=False
+                        break
+
+            if dist._get_debug_mode() != dist._DistributedDebugLevel.OFF:
+                unused_index_str += f" with name {unused_fqn}"
+
+            self.assertTrue(unused_index_str in str(ex))
         else:
             self.fail("Expected exception")
 
@@ -2801,13 +2822,17 @@ class DistributedDataParallelTest(MultiProcessTestCase):
         except Exception as ex:
             self.fail("Unexpected exception: %s" % ex)
 
+        dist.barrier(group=process_group)
+
     @requires_nccl()
     @skip_if_lt_x_gpu(2)
+    @with_dist_debug_levels(levels=["OFF", "DETAIL", "INFO"])
     def test_find_unused_parameters_kwarg(self):
         self._test_find_unused_parameters_kwarg()
 
     @requires_nccl()
     @skip_if_lt_x_gpu(2)
+    @with_dist_debug_levels(levels=["OFF", "INFO", "DETAIL"])
     def test_find_unused_parameters_kwarg_grad_is_view(self):
         self._test_find_unused_parameters_kwarg(gradient_as_bucket_view=True)
 
