@@ -36,6 +36,10 @@ void _enable_minidump_collection(const std::string& dir) {
       -1);
 }
 
+void _disable_minidump_collection() {
+  handler = nullptr;
+}
+
 const std::string& _get_minidump_directory() {
   if (handler == nullptr) {
     AT_ERROR(
@@ -43,12 +47,35 @@ const std::string& _get_minidump_directory() {
   }
   return minidump_directory;
 }
+bool is_enabled() {
+  return handler != nullptr;
+}
+void write_minidump() {
+  if (handler == nullptr) {
+    AT_ERROR(
+        "Minidump handler is uninintialized, make sure to call _enable_minidump_collection first");
+  }
+  handler->WriteMinidump();
+}
 #else
 void _enable_minidump_collection(const std::string& dir) {
   AT_ERROR(
       "Minidump collection is currently only implemented for Linux platforms");
 }
+void _disable_minidump_collection() {
+  AT_ERROR(
+      "Minidump collection is currently only implemented for Linux platforms");
+}
 const std::string& _get_minidump_directory() {
+  AT_ERROR(
+      "Minidump collection is currently only implemented for Linux platforms");
+}
+bool is_enabled() {
+  AT_ERROR(
+      "Minidump collection is currently only implemented for Linux platforms");
+}
+
+void write_minidump() {
   AT_ERROR(
       "Minidump collection is currently only implemented for Linux platforms");
 }

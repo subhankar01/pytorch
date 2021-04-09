@@ -1,5 +1,7 @@
 import sys
 import os
+import contextlib
+import io
 import re
 import shutil
 import random
@@ -733,6 +735,29 @@ class TestAssert(TestCase):
         ms(x)
         with self.assertRaisesRegex(torch.jit.Error, "foo"):  # type: ignore[type-var]
             ms(torch.tensor([False], dtype=torch.bool))
+
+
+class TestCrashHandler(TestCase):
+    def test_python_exception_writing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            torch.utils._crash_handler.enable_minidump_collection(temp_dir)
+
+            files = os.listdir(temp_dir)
+            self.assertEqual(len(files), 0)
+
+            f = io.StringIO()
+            with contextlib.redirect_stderr(f):
+                try:
+                    @torch.jit.script
+                    def x(i: int):
+                        return i + "2"
+                except:
+                    pass
+            
+            files = os.listdir(temp_dir)
+            self.assertEqual(len(files), 1)
+            self.assertTrue(files[0].endswith(".dmp"))
+            torch.utils._crash_handler.disable_minidump_collection()
 
 
 @unittest.skipIf(IS_SANDCASTLE, "cpp_extension is OSS only")
